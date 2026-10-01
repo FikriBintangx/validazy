@@ -779,21 +779,89 @@ def index_ui():
       <button id="toggleFormBtn" class="toggle-form-btn">Verifikasi Manual (Kuisioner)</button>
 
       <div class="question-form" id="questionForm">
+        <div style="font-size: 12px; color: var(--accent-hover); font-weight: 600; margin-bottom: 4px;">Kuisioner 10 Parameter Forensik Barcode</div>
+        
         <div class="q-item">
-          <label>1. Apakah URL domain sesuai resmi?</label>
-          <select class="q-select" id="qDomain">
-            <option value="yes">Ya, sesuai whitelist</option>
-            <option value="no">Tidak, domain mencurigakan</option>
+          <label>1. Domain URL Server:</label>
+          <select class="q-select" id="q1">
+            <option value="yes">Domain resmi terdaftar (whitelist)</option>
+            <option value="no">Domain mencurigakan / tidak resmi</option>
           </select>
         </div>
+
         <div class="q-item">
-          <label>2. Bagaimana kualitas cetakan garis barcode?</label>
-          <select class="q-select" id="qSharpness">
-            <option value="good">Tajam dan jelas</option>
-            <option value="bad">Buram/bergerigi (seperti fotokopi)</option>
+          <label>2. Tanda Tangan Kriptografi (Digital Signature):</label>
+          <select class="q-select" id="q2">
+            <option value="yes">Token valid & belum kadaluarsa</option>
+            <option value="no">Token invalid / expired / tidak ditemukan</option>
           </select>
         </div>
-        <button id="submitFormBtn" class="btn" style="height: 36px; margin-top: 4px;">Proses Jawaban</button>
+
+        <div class="q-item">
+          <label>3. Ketajaman Tepi Garis (Edge Sharpness):</label>
+          <select class="q-select" id="q3">
+            <option value="good">Tepi garis tajam, lurus, dan presisi</option>
+            <option value="bad">Tepi bergerigi, kabur, atau buram</option>
+          </select>
+        </div>
+
+        <div class="q-item">
+          <label>4. Celah Bar-to-Space (Ink Bleeding):</label>
+          <select class="q-select" id="q4">
+            <option value="normal">Celah putih bersih & proporsional</option>
+            <option value="bleed">Tinta hitam meluber ke celah putih</option>
+          </select>
+        </div>
+
+        <div class="q-item">
+          <label>5. Kebersihan Margin (Quiet Zone Noise):</label>
+          <select class="q-select" id="q5">
+            <option value="clean">Margin putih bersih tanpa bercak</option>
+            <option value="noisy">Banyak bintik kotor/noise fotokopi</option>
+          </select>
+        </div>
+
+        <div class="q-item">
+          <label>6. Tingkat Kontras Hitam-Putih (Michelson Contrast):</label>
+          <select class="q-select" id="q6">
+            <option value="high">Kontras tinggi (hitam pekat & putih solid)</option>
+            <option value="low">Kontras rendah (abu-abu pudar / pudar panas)</option>
+          </select>
+        </div>
+
+        <div class="q-item">
+          <label>7. Tekstur Permukaan Label (Surface Material):</label>
+          <select class="q-select" id="q7">
+            <option value="factory">Bahan vinyl/thermal sintetis standar pabrik</option>
+            <option value="paper">Kertas HVS kasar / stiker biasa printer rumahan</option>
+          </select>
+        </div>
+
+        <div class="q-item">
+          <label>8. Simetri & Geometri Sudut Barcode (Skew Angle):</label>
+          <select class="q-select" id="q8">
+            <option value="straight">Presisi tegak lurus sempurna</option>
+            <option value="tilted">Miring/terdistorsi akibat penempelan manual</option>
+          </select>
+        </div>
+
+        <div class="q-item">
+          <label>9. Tanda Keamanan Tambahan (Hologram / UV Ink):</label>
+          <select class="q-select" id="q9">
+            <option value="present">Terdapat pantulan hologram/tinta khusus resmi</option>
+            <option value="none">Tidak ada fitur keamanan tambahan</option>
+          </select>
+        </div>
+
+        <div class="q-item">
+          <label>10. Konsistensi Nomor Seri Produk (Human-Readable Digits):</label>
+          <select class="q-select" id="q10">
+            <option value="match">Angka di bawah barcode cocok dengan payload scan</option>
+            <option value="mismatch">Angka tidak sinkron atau font salah</option>
+          </select>
+        </div>
+
+        <button id="submitFormBtn" class="btn" style="height: 38px; margin-top: 6px;">Hitung Certainty Factor (10 Fakta)</button>
       </div>
 
       <div class="result" id="resultBox" style="display: none;">
@@ -889,39 +957,100 @@ def index_ui():
       toggleFormBtn.textContent = formOpen ? 'Tutup Verifikasi Manual' : 'Verifikasi Manual (Kuisioner)';
     });
 
-    // Proses Manual Kuisioner
+    // Proses 10 Pertanyaan dengan Certainty Factor (CF)
     submitFormBtn.addEventListener('click', () => {
       resultBox.style.display = 'none';
       annotatedImg.style.display = 'none';
       document.getElementById('metricsBox').innerHTML = '';
-      
-      const domain = document.getElementById('qDomain').value;
-      const sharpness = document.getElementById('qSharpness').value;
-      
-      let status = "ORIGINAL";
-      let rule = "RULE_MANUAL_4";
-      let reason = "Evaluasi manual: Domain resmi dan cetakan tajam.";
-      let badgeCls = "badge-ORIGINAL";
-      
-      if (domain === 'no') {
-        status = "PALSU";
-        rule = "RULE_MANUAL_1";
-        reason = "Evaluasi manual: Domain tidak resmi/mencurigakan.";
-        badgeCls = "badge-PALSU";
-      } else if (sharpness === 'bad') {
-        status = "PALSU";
-        rule = "RULE_MANUAL_2";
-        reason = "Evaluasi manual: Indikasi cetak ulang (garis buram).";
-        badgeCls = "badge-PALSU";
+
+      // Bobot Pakar untuk 10 Parameter (MB - Measure of Belief)
+      const weights = {
+        q1: 0.95, // Whitelist domain
+        q2: 0.90, // Digital Signature
+        q3: 0.85, // Edge Sharpness
+        q4: 0.80, // Ink Bleeding
+        q5: 0.70, // Quiet Zone Noise
+        q6: 0.75, // Kontras
+        q7: 0.65, // Tekstur Kertas
+        q8: 0.60, // Geometri
+        q9: 0.70, // Hologram/Security
+        q10: 0.85 // Serial Number match
+      };
+
+      const val1 = document.getElementById('q1').value;
+      const val2 = document.getElementById('q2').value;
+      const val3 = document.getElementById('q3').value;
+      const val4 = document.getElementById('q4').value;
+      const val5 = document.getElementById('q5').value;
+      const val6 = document.getElementById('q6').value;
+      const val7 = document.getElementById('q7').value;
+      const val8 = document.getElementById('q8').value;
+      const val9 = document.getElementById('q9').value;
+      const val10 = document.getElementById('q10').value;
+
+      let counterfeit_evidence = [];
+      let original_evidence = [];
+      let reasons = [];
+
+      // Evaluasi masing-masing gejala
+      if (val1 === 'no') { counterfeit_evidence.push(weights.q1); reasons.push("Domain server tidak resmi"); }
+      else { original_evidence.push(weights.q1); }
+
+      if (val2 === 'no') { counterfeit_evidence.push(weights.q2); reasons.push("Tanda tangan kriptografi invalid/hilang"); }
+      else { original_evidence.push(weights.q2); }
+
+      if (val3 === 'bad') { counterfeit_evidence.push(weights.q3); reasons.push("Tepi garis buram/bergerigi"); }
+      else { original_evidence.push(weights.q3); }
+
+      if (val4 === 'bleed') { counterfeit_evidence.push(weights.q4); reasons.push("Tinta meluber ke celah putih"); }
+      else { original_evidence.push(weights.q4); }
+
+      if (val5 === 'noisy') { counterfeit_evidence.push(weights.q5); reasons.push("Bintik noise quiet zone tinggi"); }
+      else { original_evidence.push(weights.q5); }
+
+      if (val6 === 'low') { counterfeit_evidence.push(weights.q6); reasons.push("Kontras warna pudar"); }
+      else { original_evidence.push(weights.q6); }
+
+      if (val7 === 'paper') { counterfeit_evidence.push(weights.q7); reasons.push("Material kertas stiker non-standar"); }
+      else { original_evidence.push(weights.q7); }
+
+      if (val8 === 'tilted') { counterfeit_evidence.push(weights.q8); reasons.push("Geometri miring tidak presisi"); }
+      else { original_evidence.push(weights.q8); }
+
+      if (val9 === 'none') { counterfeit_evidence.push(weights.q9); reasons.push("Fitur hologram keamanan tidak terdeteksi"); }
+      else { original_evidence.push(weights.q9); }
+
+      if (val10 === 'mismatch') { counterfeit_evidence.push(weights.q10); reasons.push("Nomor seri tidak sinkron"); }
+      else { original_evidence.push(weights.q10); }
+
+      // Fungsi kombinasi CF
+      function combineCF(list) {
+        if (!list.length) return 0;
+        let c = list[0];
+        for (let i = 1; i < list.length; i++) {
+          c = c + list[i] * (1 - c);
+        }
+        return Math.round(c * 1000) / 1000;
       }
+
+      let isCounterfeit = counterfeit_evidence.length > 0;
+      let finalCF = isCounterfeit ? combineCF(counterfeit_evidence) : combineCF(original_evidence);
+      let percentage = (finalCF * 100).toFixed(1);
+
+      let status = isCounterfeit ? "PALSU" : "ORIGINAL";
+      let rule = isCounterfeit ? `RULE_CF_${counterfeit_evidence.length}_ANOMALY` : "RULE_CF_ALL_AUTHENTIC";
+      let reasonText = isCounterfeit 
+        ? `Terdeteksi ${counterfeit_evidence.length} anomali forensik: ${reasons.join(", ")}.`
+        : "Seluruh 10 parameter verifikasi forensik memenuhi spesifikasi keaslian pabrik.";
 
       const badge = document.getElementById('resBadge');
       badge.textContent = status;
-      badge.className = 'badge ' + badgeCls;
-      document.getElementById('resReason').textContent = reason;
+      badge.className = 'badge ' + (isCounterfeit ? 'badge-PALSU' : 'badge-ORIGINAL');
+      document.getElementById('resReason').textContent = reasonText;
       document.getElementById('resRule').textContent = rule;
-      document.getElementById('resCert').textContent = "Evaluasi Manual";
-      
+      document.getElementById('resCert').textContent = val2 === 'yes' ? 'Valid' : 'Tidak Valid';
+      document.getElementById('resCF').textContent = `${percentage}% (CF: ${finalCF})`;
+
       resultBox.style.display = 'flex';
     });
 
