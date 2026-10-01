@@ -43,6 +43,8 @@ async def verify_barcode(file: UploadFile = File(...)):
             rule_triggered=decision["rule_triggered"],
             reason=decision["reason"],
             certificate_valid=False,
+            certainty_factor=decision["certainty_factor"],
+            confidence_percentage=decision["confidence_percentage"],
             physical_metrics=None,
             annotated_image_base64=encode_image_base64(annotated_bgr),
         )
@@ -58,6 +60,8 @@ async def verify_barcode(file: UploadFile = File(...)):
         rule_triggered=decision["rule_triggered"],
         reason=decision["reason"],
         certificate_valid=True,
+        certainty_factor=decision["certainty_factor"],
+        confidence_percentage=decision["confidence_percentage"],
         physical_metrics=PhysicalMetrics(**metrics_dict),
         annotated_image_base64=encode_image_base64(annotated_bgr),
     )
@@ -580,7 +584,64 @@ def index_ui():
       background: #000;
       border-radius: 8px;
       border: 1px solid var(--card-border);
+      cursor: zoom-in;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
+    #annotatedImg:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Modal / Lightbox Pop-up */
+    .lightbox-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+      cursor: zoom-out;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+    .lightbox-modal.active {
+      display: flex;
+      opacity: 1;
+    }
+    .lightbox-content {
+      max-width: 90vw;
+      max-height: 85vh;
+      border-radius: 12px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      object-fit: contain;
+      animation: zoomModal 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes zoomModal {
+      from { transform: scale(0.9); }
+      to { transform: scale(1); }
+    }
+    .lightbox-close {
+      position: absolute;
+      top: 24px;
+      right: 28px;
+      color: #FFFFFF;
+      font-size: 28px;
+      font-weight: 300;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.2s ease;
+    }
+    .lightbox-close:hover {
+      transform: scale(1.15);
+    }
+
     .details {
       display: flex;
       flex-direction: column;
@@ -676,8 +737,8 @@ def index_ui():
     <!-- Panel Kiri: Alur Sistem Pakar -->
     <div class="sidebar-panel">
       <div class="sidebar-header">
-        <h2>Alur Kerja Sistem Pakar</h2>
-        <p>Proses inferensi forward chaining & analisis citra.</p>
+        <h2>Sistem Pakar: FC + Certainty Factor</h2>
+        <p>Penalaran aturan pasti & derajat keyakinan matematis.</p>
       </div>
       <div class="workflow-list">
         <div class="step-item">
@@ -694,7 +755,7 @@ def index_ui():
         </div>
         <div class="step-item">
           <div class="step-num">4</div>
-          <div class="step-text"><strong>Forward Chaining:</strong> Evaluasi metrik fisik untuk menentukan status <em>ORIGINAL</em> atau <em>PALSU (Rule 2–4)</em>.</div>
+          <div class="step-text"><strong>Forward Chaining:</strong> Kombinasi nilai keyakinan (CF) bukti fisik untuk menentukan status & persentase keaslian.</div>
         </div>
       </div>
     </div>
@@ -742,6 +803,7 @@ def index_ui():
         <img id="annotatedImg" alt="Visual Bounding Box" />
 
         <div class="details">
+          <div class="info-row"><span>Tingkat Keyakinan (Certainty)</span><span id="resCF" style="color: var(--accent-hover); font-weight:700;">-</span></div>
           <div class="info-row"><span>Aturan Terpicu</span><span id="resRule">-</span></div>
           <div class="info-row"><span>Sertifikat Digital</span><span id="resCert">-</span></div>
           <div id="metricsBox" style="display: flex; flex-direction: column; gap: 8px;"></div>
@@ -758,6 +820,12 @@ def index_ui():
   <footer class="app-footer">
     <span>VALIDAZYYYY &bull; Sistem Pakar Verifikasi Barcode Digital &copy; 2026</span>
   </footer>
+
+  <!-- Lightbox Modal untuk Klik Gambar Hasil -->
+  <div id="lightboxModal" class="lightbox-modal">
+    <span class="lightbox-close" id="lightboxClose">&times;</span>
+    <img id="lightboxImg" class="lightbox-content" alt="Full Preview" />
+  </div>
 
   <script>
     const fileInput = document.getElementById('fileInput');
@@ -882,6 +950,7 @@ def index_ui():
         document.getElementById('resReason').textContent = data.reason;
         document.getElementById('resRule').textContent = data.rule_triggered;
         document.getElementById('resCert').textContent = data.certificate_valid ? 'Valid (Resmi)' : 'Tidak Valid';
+        document.getElementById('resCF').textContent = `${data.confidence_percentage}% (CF: ${data.certainty_factor})`;
 
         if (data.annotated_image_base64) {
           annotatedImg.src = data.annotated_image_base64;
@@ -968,6 +1037,29 @@ Alasan: ${currentResultData.reason}`;
         applyTheme(currentTheme !== 'light');
       });
     }
+    // Lightbox Modal Click
+    const lightboxModal = document.getElementById('lightboxModal');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const lightboxClose = document.getElementById('lightboxClose');
+
+    annotatedImg.addEventListener('click', () => {
+      if (annotatedImg.src) {
+        lightboxImg.src = annotatedImg.src;
+        lightboxModal.classList.add('active');
+      }
+    });
+
+    function closeLightbox() {
+      lightboxModal.classList.remove('active');
+    }
+
+    lightboxClose.addEventListener('click', closeLightbox);
+    lightboxModal.addEventListener('click', (e) => {
+      if (e.target !== lightboxImg) closeLightbox();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLightbox();
+    });
   </script>
 </body>
 </html>"""

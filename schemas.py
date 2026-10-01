@@ -12,5 +12,7 @@ class VerificationResponse(BaseModel):
     rule_triggered: str
     reason: str
     certificate_valid: bool
+    certainty_factor: float
+    confidence_percentage: float
     physical_metrics: Optional[PhysicalMetrics] = None
     annotated_image_base64: Optional[str] = None
