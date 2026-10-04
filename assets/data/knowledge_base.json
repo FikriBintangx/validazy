@@ -1,0 +1,14 @@
+{
+  "diseases": [
+    { "id": "P01", "name": "Authentic Product", "advice": ["Original", "Palsu"] }
+  ],
+  "symptoms": [
+    { "id": "S01", "disease_id": "P01", "text": "Hasil scan Barcode/QR valid & link tembus ke serial database resmi?", "cf_expert": 0.6 },
+    { "id": "S02", "disease_id": "P01", "text": "Hologram 3D / Microtext terlihat jelas dan berubah warna saat dimiringkan?", "cf_expert": 0.7 }
+  ],
+  "options": [
+    { "label": "Palsu / Tidak Ada", "weight": -1.0 },
+    { "label": "Ragu / Kurang Jelas", "weight": 0.0 },
+    { "label": "Yakin Ada & Sesuai", "weight": 1.0 }
+  ]
+}
